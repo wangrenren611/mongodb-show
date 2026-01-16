@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(sudo chown:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev)",
+      "Bash(pnpm dev)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "sequential-thinking",
+    "context7",
+    "tavily",
+    "shadcn"
+  ]
+}

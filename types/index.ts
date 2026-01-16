@@ -1,0 +1,113 @@
+// MongoDB 连接配置类型
+export interface MongoConnection {
+  id: string
+  name: string
+  host: string
+  port: number
+  username?: string
+  password?: string
+  authenticationDatabase?: string
+  authMechanism?: 'DEFAULT' | 'SCRAM-SHA-1' | 'SCRAM-SHA-256' | 'MONGODB-X509' | 'GSSAPI' | 'PLAIN'
+  srv: boolean // 是否使用 SRV 记录 (MongoDB Atlas)
+  sshTunnel?: {
+    enabled: boolean
+    host: string
+    port: number
+    username: string
+    password?: string
+    privateKeyPath?: string
+  }
+  connectionString?: string // 完整的连接字符串（可选）
+  createdAt: Date
+  lastConnected?: Date
+}
+
+// 连接状态
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+// 数据库信息
+export interface DatabaseInfo {
+  name: string
+  sizeOnDisk?: number
+  empty?: boolean
+  collections: CollectionInfo[]
+}
+
+// 集合信息
+export interface CollectionInfo {
+  name: string
+  count: number
+  size: number
+  avgObjSize: number
+  storageSize: number
+  indexes: IndexInfo[]
+  capped?: boolean
+}
+
+// 索引信息
+export interface IndexInfo {
+  name: string
+  keys: Record<string, number | string>
+  unique: boolean
+  sparse: boolean
+  size: number
+  version: number
+}
+
+// MongoDB 文档类型
+export type MongoDocument = Record<string, unknown>
+
+// 分页参数
+export interface PaginationParams {
+  page: number
+  limit: number
+}
+
+// 分页结果
+export interface PaginatedResult<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+  hasMore: boolean
+}
+
+// 查询参数
+export interface QueryParams {
+  filter: Record<string, unknown>
+  sort: Record<string, 1 | -1>
+  projection: Record<string, 1 | 0>
+  skip: number
+  limit: number
+}
+
+// 聚合管道阶段
+export interface AggregateStage {
+  $match?: Record<string, unknown>
+  $group?: Record<string, unknown>
+  $sort?: Record<string, 1 | -1>
+  $project?: Record<string, unknown>
+  $limit?: number
+  $skip?: number
+  $lookup?: Record<string, unknown>
+  $unwind?: string | { path: string; includeArrayIndex?: string; preserveNullAndEmptyArrays?: boolean }
+  $count?: string
+}
+
+// 图表类型
+export type ChartType = 'bar' | 'line' | 'pie' | 'area'
+
+// 图表配置
+export interface ChartConfig {
+  id: string
+  name: string
+  type: ChartType
+  collection: string
+  aggregate: AggregateStage[]
+  xAxis?: string
+  yAxis?: string
+  groupBy?: string
+}
+
+// 视图类型
+export type DocumentViewType = 'table' | 'json' | 'tree'
