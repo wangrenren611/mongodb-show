@@ -1,3 +1,30 @@
+// NextAuth 类型扩展
+import 'next-auth'
+import 'next-auth/jwt'
+
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string
+      email: string
+      name?: string | null
+    }
+  }
+
+  interface User {
+    id: string
+    email: string
+    name?: string | null
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string
+    email: string
+  }
+}
+
 // MongoDB 连接配置类型
 export interface MongoConnection {
   id: string
@@ -20,6 +47,7 @@ export interface MongoConnection {
   connectionString?: string // 完整的连接字符串（可选）
   createdAt: Date
   lastConnected?: Date
+  userId?: string // 关联的用户ID
 }
 
 // 连接状态
@@ -111,3 +139,4 @@ export interface ChartConfig {
 
 // 视图类型
 export type DocumentViewType = 'table' | 'json' | 'tree'
+

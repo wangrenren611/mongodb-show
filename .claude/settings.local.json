@@ -9,7 +9,9 @@
       "Bash(sudo chown:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev)",
-      "Bash(pnpm dev)"
+      "Bash(pnpm dev)",
+      "Bash(pnpm add:*)",
+      "Bash(sudo rm:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

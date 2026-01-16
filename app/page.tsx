@@ -1,21 +1,62 @@
-import Link from "next/link"
-import { Database, Plus, Server, BarChart3 } from "lucide-react"
+'use client'
+
+import { useSession } from 'next-auth/react'
+import Link from 'next/link'
+import { Database, Plus, Server, BarChart3, LogOut, LogIn } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 export default function HomePage() {
+  const { data: session, status } = useSession()
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       <div className="max-w-4xl w-full px-8 py-12">
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center mb-4">
-            <Database className="w-16 h-16 text-primary" />
+        <div className="flex items-center justify-between mb-12">
+          <div className="text-center flex-1">
+            <div className="flex items-center justify-center mb-4">
+              <Database className="w-16 h-16 text-primary" />
+            </div>
+            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Mongoose Show
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              功能完整的 MongoDB 数据库可视化管理工具
+            </p>
           </div>
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Mongoose Show
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            功能完整的 MongoDB 数据库可视化管理工具
-          </p>
         </div>
+
+        {status === 'loading' ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">加载中...</p>
+          </div>
+        ) : !session ? (
+          <div className="text-center mb-12">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 mb-6">
+              <p className="text-yellow-800 dark:text-yellow-200">
+                请先登录以使用连接管理功能
+              </p>
+            </div>
+            <Link href="/login">
+              <Button size="lg">
+                <LogIn className="w-4 h-4 mr-2" />
+                登录
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between mb-8 bg-white dark:bg-slate-800 rounded-lg p-4 border">
+            <div>
+              <p className="text-sm text-muted-foreground">当前用户</p>
+              <p className="font-medium">{session.user?.email}</p>
+            </div>
+            <form action="/api/auth/signout" method="POST">
+              <Button type="submit" variant="outline" size="sm">
+                <LogOut className="w-4 h-4 mr-2" />
+                登出
+              </Button>
+            </form>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
           <Link

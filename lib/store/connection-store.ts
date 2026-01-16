@@ -10,7 +10,7 @@ interface ConnectionState {
   // Actions
   initialize: () => Promise<void>
   saveConfig: () => Promise<void>
-  addConnection: (connection: Omit<MongoConnection, 'id' | 'createdAt'>) => Promise<void>
+  addConnection: (connection: Omit<MongoConnection, 'id' | 'createdAt' | 'userId'>) => Promise<void>
   updateConnection: (id: string, connection: Partial<MongoConnection>) => Promise<void>
   removeConnection: (id: string) => Promise<void>
   setConnectionStatus: (id: string, status: ConnectionStatus) => void
@@ -58,9 +58,18 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   },
 
   addConnection: async (connection) => {
+    // 获取当前用户 ID
+    const sessionResponse = await fetch('/api/auth/session')
+    const session = await sessionResponse.json()
+
+    if (!session?.user?.id) {
+      throw new Error('User not authenticated')
+    }
+
     const newConnection: MongoConnection = {
       ...connection,
       id: crypto.randomUUID(),
+      userId: session.user.id,
       createdAt: new Date(),
     }
     set((state) => ({
