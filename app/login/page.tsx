@@ -109,6 +109,13 @@ export default function LoginPage() {
                   '登录'
                 )}
               </Button>
+
+              <div className="text-center text-sm">
+                <span className="text-muted-foreground">还没有账户？</span>{' '}
+                <Link href="/register" className="text-primary hover:underline">
+                  立即注册
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>

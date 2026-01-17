@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getMongoClient } from '@/lib/mongodb/client'
-import type { MongoConnection, QueryParams } from '@/types'
+import { getConnection } from '@/lib/config/connections'
+import { sanitizeQueryParams } from '@/lib/mongodb/sanitize'
+import type { QueryParams } from '@/types'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,52 +15,50 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const connection: MongoConnection = body.connection
+    const connectionId = body.connectionId
     const databaseName: string = body.databaseName
     const collectionName: string = body.collectionName
     const queryParams: Partial<QueryParams> = body.query || {}
 
-    if (!connection || !databaseName || !collectionName) {
+    if (!connectionId || !databaseName || !collectionName) {
       return NextResponse.json(
-        { error: 'Connection, databaseName, and collectionName are required' },
+        { error: 'Connection ID, databaseName, and collectionName are required' },
         { status: 400 }
       )
     }
 
-    // 验证连接是否属于当前用户
-    if (connection.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // 从数据库获取连接配置
+    const connection = await getConnection(session.user.id, connectionId)
+
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
     }
 
     const client = await getMongoClient(connection)
     const db = client.db(databaseName)
     const collection = db.collection(collectionName)
 
-    // 构建查询
-    const filter = queryParams.filter || {}
-    const sort = queryParams.sort || { _id: 1 }
-    const projection = queryParams.projection || {}
-    const skip = queryParams.skip || 0
-    const limit = Math.min(queryParams.limit || 50, 1000)
+    // 净化查询参数
+    const sanitizedQuery = sanitizeQueryParams(queryParams as QueryParams)
 
     // 获取总数
-    const total = await collection.countDocuments(filter)
+    const total = await collection.countDocuments(sanitizedQuery.filter)
 
     // 获取文档
     const documents = await collection
-      .find(filter)
-      .project(projection)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
+      .find(sanitizedQuery.filter)
+      .project(sanitizedQuery.projection)
+      .sort(sanitizedQuery.sort)
+      .skip(sanitizedQuery.skip)
+      .limit(sanitizedQuery.limit)
       .toArray()
 
     return NextResponse.json({
       documents,
       total,
-      page: Math.floor(skip / limit) + 1,
-      limit,
-      hasMore: skip + limit < total,
+      page: Math.floor(sanitizedQuery.skip / sanitizedQuery.limit) + 1,
+      limit: sanitizedQuery.limit,
+      hasMore: sanitizedQuery.skip + sanitizedQuery.limit < total,
     })
   } catch (error) {
     return NextResponse.json(

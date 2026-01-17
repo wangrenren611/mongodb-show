@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Plus, Server, Trash2, Edit, Check, X, Loader2 } from "lucide-react"
+import { Plus, Server, Trash2, Check, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -13,7 +13,7 @@ import { useToast } from "@/components/layout/use-toast"
 import type { MongoConnection } from "@/types"
 
 export default function ConnectionsPage() {
-  const { connections, removeConnection, initialize, isLoading } = useConnectionStore()
+  const { connections, removeConnection, initialize, isLoading, connectionStatus, reconnectAll, setConnectionStatus } = useConnectionStore()
   const { toast } = useToast()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [testingId, setTestingId] = useState<string | null>(null)
@@ -23,13 +23,21 @@ export default function ConnectionsPage() {
     initialize()
   }, [initialize])
 
+  useEffect(() => {
+    // 当连接列表加载完成后，自动重连所有连接
+    if (connections.length > 0 && !isLoading) {
+      reconnectAll()
+    }
+  }, [connections.length, isLoading, reconnectAll])
+
   const handleTestConnection = async (connection: MongoConnection) => {
     setTestingId(connection.id)
+    setConnectionStatus(connection.id, 'connecting')
     try {
       const response = await fetch('/api/connections/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connection }),
+        body: JSON.stringify({ connectionId: connection.id }),
       })
       const result = await response.json()
 
@@ -41,6 +49,8 @@ export default function ConnectionsPage() {
         },
       }))
 
+      setConnectionStatus(connection.id, result.success ? 'connected' : 'error')
+
       toast({
         title: result.success ? '连接成功' : '连接失败',
         description: result.success ? '成功连接到 MongoDB 服务器' : result.error || '无法连接到 MongoDB 服务器',
@@ -51,6 +61,7 @@ export default function ConnectionsPage() {
         ...prev,
         [connection.id]: { success: false, message: '网络错误' },
       }))
+      setConnectionStatus(connection.id, 'error')
       toast({
         title: '错误',
         description: '无法连接到服务器',
@@ -141,6 +152,39 @@ export default function ConnectionsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {connections.map((connection) => {
               const testResult = testResults[connection.id]
+              const status = connectionStatus[connection.id]
+
+              const getStatusDisplay = () => {
+                if (status === 'connecting') {
+                  return (
+                    <div className="flex items-center gap-1 text-blue-600">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>连接中...</span>
+                    </div>
+                  )
+                }
+                if (status === 'connected') {
+                  return (
+                    <div className="flex items-center gap-1 text-green-600">
+                      <Check className="w-4 h-4" />
+                      <span>已连接</span>
+                    </div>
+                  )
+                }
+                if (status === 'error') {
+                  return (
+                    <div className="flex items-center gap-1 text-red-600">
+                      <X className="w-4 h-4" />
+                      <span>未连接</span>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <span>未测试</span>
+                  </div>
+                )
+              }
 
               return (
                 <Card key={connection.id} className="hover:shadow-md transition-shadow">
@@ -159,10 +203,12 @@ export default function ConnectionsPage() {
                       <div className="space-y-2 text-sm text-muted-foreground mb-4">
                         <div>认证: {connection.username ? '是' : '否'}</div>
                         <div>类型: {connection.srv ? 'SRV (Atlas)' : '标准'}</div>
-                        {testResult && (
-                          <div className={`flex items-center gap-1 ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
-                            {testResult.success ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                            <span>{testResult.message}</span>
+                        <div className="mt-2">
+                          {getStatusDisplay()}
+                        </div>
+                        {testResult && status !== 'connected' && status !== 'connecting' && (
+                          <div className={`text-xs ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                            {testResult.message}
                           </div>
                         )}
                       </div>
@@ -172,12 +218,12 @@ export default function ConnectionsPage() {
                           variant="outline"
                           className="flex-1"
                           onClick={() => handleTestConnection(connection)}
-                          disabled={testingId === connection.id}
+                          disabled={testingId === connection.id || status === 'connecting'}
                         >
                           {testingId === connection.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            '测试'
+                            '重新连接'
                           )}
                         </Button>
                         <Button
@@ -226,9 +272,23 @@ function AddConnectionDialog({ open, onOpenChange, trigger }: { open?: boolean; 
     setIsSubmitting(true)
 
     try {
-      // 测试连接
+      // 获取当前用户 ID
+      const sessionResponse = await fetch('/api/auth/session')
+      const session = await sessionResponse.json()
+
+      if (!session?.user?.id) {
+        toast({
+          title: '错误',
+          description: '用户未登录',
+          variant: 'destructive',
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      // 测试连接 - 直接调用 addConnection API，它会测试连接
       const testConnection: MongoConnection = {
-        id: 'test',
+        id: crypto.randomUUID(), // 生成真实的 ID
         name: formData.name,
         host: formData.host,
         port: parseInt(formData.port) || 27017,
@@ -239,26 +299,10 @@ function AddConnectionDialog({ open, onOpenChange, trigger }: { open?: boolean; 
         authMechanism: formData.authMechanism,
         connectionString: useCustomConnectionString ? formData.connectionString : undefined,
         createdAt: new Date(),
+        userId: session.user.id,
       }
 
-      const response = await fetch('/api/connections/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connection: testConnection }),
-      })
-      const result = await response.json()
-
-      if (!result.success) {
-        toast({
-          title: '连接失败',
-          description: result.error || '无法连接到 MongoDB 服务器',
-          variant: 'destructive',
-        })
-        setIsSubmitting(false)
-        return
-      }
-
-      // 添加连接
+      // 直接添加连接（包含密码）- API 会自动测试连接
       await addConnection(testConnection)
       setIsOpen(false)
       setFormData({

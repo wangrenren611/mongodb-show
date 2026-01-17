@@ -40,7 +40,7 @@ interface ChartData {
 function ChartsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { getConnection } = useConnectionStore()
+  const { getConnection, initialize } = useConnectionStore()
   const { toast } = useToast()
 
   const connectionId = searchParams.get('connectionId')
@@ -57,10 +57,20 @@ function ChartsContent() {
   const [loading, setLoading] = useState(false)
   const [fields, setFields] = useState<string[]>([])
   const [selectedDataItem, setSelectedDataItem] = useState<ChartData | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const activeConnection = connection
 
   useEffect(() => {
+    const init = async () => {
+      await initialize()
+      setIsInitialized(true)
+    }
+    init()
+  }, [initialize])
+
+  useEffect(() => {
+    if (!isInitialized) return
     if (!connection) {
       router.push('/connections')
       return
@@ -70,7 +80,7 @@ function ChartsContent() {
       return
     }
     fetchSampleDocument()
-  }, [connection, databaseName, collectionName, connectionId])
+  }, [connection, databaseName, collectionName, connectionId, isInitialized])
 
   const fetchSampleDocument = async () => {
     if (!connection || !databaseName || !collectionName) return
@@ -80,7 +90,7 @@ function ChartsContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          connection,
+          connectionId: connection.id,
           databaseName,
           collectionName,
           query: {
@@ -138,7 +148,7 @@ function ChartsContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          connection,
+          connectionId: connection.id,
           databaseName,
           collectionName,
           pipeline,
@@ -169,7 +179,7 @@ function ChartsContent() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              connection,
+              connectionId: connection.id,
               databaseName,
               collectionName,
               query: {

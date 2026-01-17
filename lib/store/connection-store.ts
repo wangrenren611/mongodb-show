@@ -15,6 +15,8 @@ interface ConnectionState {
   removeConnection: (id: string) => Promise<void>
   setConnectionStatus: (id: string, status: ConnectionStatus) => void
   getConnection: (id: string) => MongoConnection | undefined
+  reconnectAll: () => Promise<void>
+  testConnection: (connection: MongoConnection) => Promise<{ success: boolean; error?: string }>
 }
 
 export const useConnectionStore = create<ConnectionState>()((set, get) => ({
@@ -72,10 +74,23 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
       userId: session.user.id,
       createdAt: new Date(),
     }
-    set((state) => ({
-      connections: [...state.connections, newConnection],
-    }))
-    await get().saveConfig()
+
+    // 调用新的 API 来添加连接（包含密码）
+    const response = await fetch('/api/connections/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConnection),
+    })
+
+    const result = await response.json()
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to add connection')
+    }
+
+    // 强制重新初始化连接列表（不包含密码）
+    set({ isInitialized: false })
+    await get().initialize()
   },
 
   updateConnection: async (id, connection) => {
@@ -103,5 +118,63 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
 
   getConnection: (id) => {
     return get().connections.find((conn) => conn.id === id)
+  },
+
+  reconnectAll: async () => {
+    const { connections } = get()
+    if (connections.length === 0) return
+
+    // 设置所有连接状态为 connecting
+    const statuses: Record<string, ConnectionStatus> = {}
+    connections.forEach((conn) => {
+      statuses[conn.id] = 'connecting'
+    })
+    set({ connectionStatus: statuses })
+
+    // 并发测试所有连接
+    const results = await Promise.allSettled(
+      connections.map(async (connection) => {
+        try {
+          const response = await fetch('/api/connections/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ connectionId: connection.id }),
+          })
+          const result = await response.json()
+          return { id: connection.id, success: result.success }
+        } catch {
+          return { id: connection.id, success: false }
+        }
+      })
+    )
+
+    // 更新连接状态
+    const newStatuses: Record<string, ConnectionStatus> = {}
+    results.forEach((result, index) => {
+      const connectionId = connections[index].id
+      if (result.status === 'fulfilled' && result.value.success) {
+        newStatuses[connectionId] = 'connected'
+      } else {
+        newStatuses[connectionId] = 'error'
+      }
+    })
+    set({ connectionStatus: newStatuses })
+  },
+
+  testConnection: async (connection) => {
+    try {
+      const response = await fetch('/api/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId: connection.id }),
+      })
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
   },
 }))

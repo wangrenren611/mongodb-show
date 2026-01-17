@@ -25,24 +25,34 @@ interface Collection {
 function DatabasesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { getConnection } = useConnectionStore()
+  const { getConnection, initialize } = useConnectionStore()
   const { toast } = useToast()
   const [databases, setDatabases] = useState<Database[]>([])
   const [collections, setCollections] = useState<Record<string, Collection[]>>({})
   const [expandedDbs, setExpandedDbs] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [loadingDb, setLoadingDb] = useState<Set<string>>(new Set())
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const connectionId = searchParams.get('connectionId')
   const connection = connectionId ? getConnection(connectionId) : null
 
   useEffect(() => {
+    const init = async () => {
+      await initialize()
+      setIsInitialized(true)
+    }
+    init()
+  }, [initialize])
+
+  useEffect(() => {
+    if (!isInitialized) return
     if (!connection) {
       router.push('/connections')
       return
     }
     fetchDatabases()
-  }, [connection])
+  }, [connection, isInitialized])
 
   const fetchDatabases = async () => {
     if (!connection) return
@@ -52,7 +62,7 @@ function DatabasesContent() {
       const response = await fetch('/api/connections/databases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connection }),
+        body: JSON.stringify({ connectionId: connection.id }),
       })
       const result = await response.json()
 
@@ -81,7 +91,7 @@ function DatabasesContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          connection,
+          connectionId: connection.id,
           databaseName,
         }),
       })

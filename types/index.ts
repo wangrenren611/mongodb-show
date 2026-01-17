@@ -48,6 +48,7 @@ export interface MongoConnection {
   createdAt: Date
   lastConnected?: Date
   userId?: string // 关联的用户ID
+  hasCredentials?: boolean // 是否有凭据（用于前端显示）
 }
 
 // 连接状态

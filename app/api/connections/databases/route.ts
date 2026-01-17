@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getMongoClient } from '@/lib/mongodb/client'
-import type { MongoConnection } from '@/types'
+import { getConnection } from '@/lib/config/connections'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,15 +13,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const connection: MongoConnection = body.connection
+    const connectionId = body.connectionId
 
-    if (!connection) {
-      return NextResponse.json({ error: 'Connection is required' }, { status: 400 })
+    if (!connectionId) {
+      return NextResponse.json({ error: 'Connection ID is required' }, { status: 400 })
     }
 
-    // 验证连接是否属于当前用户
-    if (connection.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // 从数据库获取连接配置
+    const connection = await getConnection(session.user.id, connectionId)
+
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
     }
 
     const client = await getMongoClient(connection)

@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server'
 import { createUser, getUserByEmail } from '@/lib/models/user'
+import { validatePassword } from '@/lib/auth/password-validator'
+import { checkRateLimit, getRateLimitHeaders } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   try {
+    // 速率限制
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const rateLimitCheck = checkRateLimit(ip, '/api/auth/register')
+
+    if (!rateLimitCheck.success) {
+      return NextResponse.json(
+        { error: '请求过于频繁，请稍后重试' },
+        {
+          status: 429,
+          headers: getRateLimitHeaders('/api/auth/register'),
+        }
+      )
+    }
+
     const { email, password, name } = await request.json()
 
     if (!email || !password || !name) {
@@ -12,9 +28,11 @@ export async function POST(request: Request) {
       )
     }
 
-    if (password.length < 6) {
+    // 验证密码强度
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.valid) {
       return NextResponse.json(
-        { error: '密码至少需要 6 个字符' },
+        { error: passwordValidation.errors.join('; ') },
         { status: 400 }
       )
     }

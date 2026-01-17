@@ -25,7 +25,7 @@ interface QueryHistory {
 function QueryContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { getConnection } = useConnectionStore()
+  const { getConnection, initialize } = useConnectionStore()
   const { toast } = useToast()
 
   const connectionId = searchParams.get('connectionId')
@@ -38,10 +38,20 @@ function QueryContent() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'find' | 'aggregate'>('find')
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([])
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const connection = connectionId ? getConnection(connectionId) : null
 
   useEffect(() => {
+    const init = async () => {
+      await initialize()
+      setIsInitialized(true)
+    }
+    init()
+  }, [initialize])
+
+  useEffect(() => {
+    if (!isInitialized) return
     if (!connection) {
       router.push('/connections')
       return
@@ -51,7 +61,7 @@ function QueryContent() {
       return
     }
     loadQueryHistory()
-  }, [connection, databaseName, collectionName, connectionId])
+  }, [connection, databaseName, collectionName, connectionId, isInitialized])
 
   const loadQueryHistory = () => {
     const historyKey = `query-history-${databaseName}-${collectionName}`
@@ -101,7 +111,7 @@ function QueryContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          connection,
+          connectionId: connection.id,
           databaseName,
           collectionName,
           query: {
@@ -160,7 +170,7 @@ function QueryContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          connection,
+          connectionId: connection.id,
           databaseName,
           collectionName,
           pipeline,

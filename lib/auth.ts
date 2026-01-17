@@ -41,6 +41,9 @@ export const authOptions: AuthOptions = {
   session: {
     strategy: 'jwt',
   },
+  // 确保 CSRF 启用（NextAuth 默认启用）
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

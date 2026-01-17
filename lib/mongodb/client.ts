@@ -91,13 +91,38 @@ export async function closeAllConnections(): Promise<void> {
  */
 export async function testConnection(connection: MongoConnection): Promise<{ success: boolean; error?: string }> {
   try {
-    const client = await getMongoClient(connection)
+    const connectionString = buildConnectionString(connection)
+
+    // 创建临时客户端用于测试
+    const client = new MongoClient(connectionString, {
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 30000,
+      connectTimeoutMS: 10000,
+    })
+
+    await client.connect()
     await client.db('admin').command({ ping: 1 })
+
+    // 关闭测试连接
+    await client.close()
+
     return { success: true }
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+    // 提供更友好的错误信息
+    if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo')) {
+      return { success: false, error: '无法找到数据库服务器，请检查主机名' }
+    } else if (errorMessage.includes('ETIMEDOUT') || errorMessage.includes('timed out')) {
+      return { success: false, error: '连接超时，请检查网络或防火墙设置' }
+    } else if (errorMessage.includes('Authentication')) {
+      return { success: false, error: '认证失败，请检查用户名和密码' }
+    } else if (errorMessage.includes('queryTxt')) {
+      return { success: false, error: 'SRV 记录查询失败，请检查主机名和 DNS 设置' }
+    } else {
+      return { success: false, error: errorMessage }
     }
   }
 }

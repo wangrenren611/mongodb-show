@@ -2,7 +2,21 @@ import { MongoClient } from 'mongodb'
 import type { MongoConnection } from '@/types'
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mongoose-show-auth'
-const DB_NAME = MONGODB_URI.split('/').pop() || 'mongoose-show-auth'
+
+// 从连接字符串中提取数据库名称
+function getDatabaseName(uri: string): string {
+  try {
+    // 移除 URL 参数
+    const urlWithoutParams = uri.split('?')[0]
+    // 提取最后一个路径段作为数据库名
+    const dbName = urlWithoutParams.split('/').pop()
+    return dbName || 'mongoose-show-auth'
+  } catch {
+    return 'mongoose-show-auth'
+  }
+}
+
+const DB_NAME = getDatabaseName(MONGODB_URI)
 
 // MongoDB 客户端缓存
 let authClient: MongoClient | null = null
@@ -20,8 +34,8 @@ interface ConnectionsConfig {
   activeConnectionId: string | null
 }
 
-// 读取用户连接配置
-export async function readConnectionsConfig(userId: string): Promise<ConnectionsConfig> {
+// 从数据库读取用户连接配置(包含敏感信息,仅供内部使用)
+async function readConnectionsConfigWithSecrets(userId: string): Promise<ConnectionsConfig> {
   const db = await getAuthDb()
   const config = await db.collection('user_configs').findOne({ userId })
 
@@ -31,6 +45,29 @@ export async function readConnectionsConfig(userId: string): Promise<Connections
 
   return {
     connections: config.connections || [],
+    activeConnectionId: config.activeConnectionId || null,
+  }
+}
+
+// 读取用户连接配置(移除敏感信息)
+export async function readConnectionsConfig(userId: string): Promise<ConnectionsConfig> {
+  const db = await getAuthDb()
+  const config = await db.collection('user_configs').findOne({ userId })
+
+  if (!config) {
+    return { connections: [], activeConnectionId: null }
+  }
+
+  // 移除敏感信息
+  const connections = (config.connections || []).map((conn: MongoConnection) => ({
+    ...conn,
+    password: undefined,
+    connectionString: undefined,
+    hasCredentials: !!(conn.password || conn.connectionString),
+  }))
+
+  return {
+    connections,
     activeConnectionId: config.activeConnectionId || null,
   }
 }
@@ -51,9 +88,9 @@ export async function writeConnectionsConfig(userId: string, data: ConnectionsCo
   )
 }
 
-// 获取单个连接
+// 获取单个连接(包含敏感信息,仅供服务器端使用)
 export async function getConnection(userId: string, connectionId: string): Promise<MongoConnection | null> {
-  const config = await readConnectionsConfig(userId)
+  const config = await readConnectionsConfigWithSecrets(userId)
   return config.connections.find(c => c.id === connectionId) || null
 }
 
