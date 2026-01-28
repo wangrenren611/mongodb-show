@@ -1,5 +1,5 @@
 import { MongoClient } from 'mongodb'
-import type { MongoConnection } from '@/types'
+import type { MongoConnection, DatabaseConnection } from '@/types'
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mongoose-show-auth'
 
@@ -30,7 +30,7 @@ async function getAuthDb() {
 }
 
 interface ConnectionsConfig {
-  connections: MongoConnection[]
+  connections: DatabaseConnection[]
   activeConnectionId: string | null
 }
 
@@ -89,25 +89,25 @@ export async function writeConnectionsConfig(userId: string, data: ConnectionsCo
 }
 
 // 获取单个连接(包含敏感信息,仅供服务器端使用)
-export async function getConnection(userId: string, connectionId: string): Promise<MongoConnection | null> {
+export async function getConnection(userId: string, connectionId: string): Promise<DatabaseConnection | null> {
   const config = await readConnectionsConfigWithSecrets(userId)
   return config.connections.find(c => c.id === connectionId) || null
 }
 
 // 添加连接
-export async function addConnection(userId: string, connection: MongoConnection): Promise<void> {
+export async function addConnection(userId: string, connection: DatabaseConnection): Promise<void> {
   const config = await readConnectionsConfig(userId)
   config.connections.push(connection)
   await writeConnectionsConfig(userId, config)
 }
 
 // 更新连接
-export async function updateConnection(userId: string, connectionId: string, updates: Partial<MongoConnection>): Promise<void> {
+export async function updateConnection(userId: string, connectionId: string, updates: Partial<DatabaseConnection>): Promise<void> {
   const config = await readConnectionsConfig(userId)
   const index = config.connections.findIndex(c => c.id === connectionId)
 
   if (index !== -1) {
-    config.connections[index] = { ...config.connections[index], ...updates }
+    config.connections[index] = { ...config.connections[index], ...updates } as DatabaseConnection
     await writeConnectionsConfig(userId, config)
   }
 }

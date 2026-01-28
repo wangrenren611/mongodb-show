@@ -29,6 +29,7 @@ declare module 'next-auth/jwt' {
 export interface MongoConnection {
   id: string
   name: string
+  type: 'mongodb'
   host: string
   port: number
   username?: string
@@ -140,4 +141,56 @@ export interface ChartConfig {
 
 // 视图类型
 export type DocumentViewType = 'table' | 'json' | 'tree'
+
+// Re-export database types
+export type { DatabaseType, BaseConnection, PostgresConnection, DatabaseConnection, MongoConnection as MongoConnectionBase } from './database'
+export type { isMongoConnection, isPostgresConnection } from './database'
+
+// PostgreSQL 特定类型
+export interface SchemaInfo {
+  name: string
+  owner?: string
+  privileges?: string[]
+}
+
+export interface TableInfo {
+  name: string
+  schema: string
+  rowCount: number
+  size: number
+  indexes: number
+  comment?: string
+}
+
+export interface ColumnInfo {
+  name: string
+  type: string
+  nullable: boolean
+  defaultValue?: string
+  maxLength?: number
+  isPrimaryKey?: boolean
+  isForeignKey?: boolean
+  foreignKeyReference?: {
+    table: string
+    column: string
+  }
+}
+
+export interface QueryResult {
+  rows: Record<string, unknown>[]
+  fields: {
+    name: string
+    type: string
+  }[]
+  rowCount: number
+  command: string
+}
+
+// SQL 查询参数
+export interface SqlQueryParams {
+  query: string
+  params?: any[]
+  limit?: number
+  offset?: number
+}
 

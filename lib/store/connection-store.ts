@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { MongoConnection, ConnectionStatus } from '@/types'
+import type { DatabaseConnection, ConnectionStatus } from '@/types'
+import { isMongoConnection, isPostgresConnection } from '@/types/database'
 
 interface ConnectionState {
-  connections: MongoConnection[]
+  connections: DatabaseConnection[]
   connectionStatus: Record<string, ConnectionStatus>
   isLoading: boolean
   isInitialized: boolean
@@ -10,13 +11,13 @@ interface ConnectionState {
   // Actions
   initialize: () => Promise<void>
   saveConfig: () => Promise<void>
-  addConnection: (connection: Omit<MongoConnection, 'id' | 'createdAt' | 'userId'>) => Promise<void>
-  updateConnection: (id: string, connection: Partial<MongoConnection>) => Promise<void>
+  addConnection: (connection: Omit<DatabaseConnection, 'id' | 'createdAt' | 'userId'>) => Promise<void>
+  updateConnection: (id: string, connection: Partial<DatabaseConnection>) => Promise<void>
   removeConnection: (id: string) => Promise<void>
   setConnectionStatus: (id: string, status: ConnectionStatus) => void
-  getConnection: (id: string) => MongoConnection | undefined
+  getConnection: (id: string) => DatabaseConnection | undefined
   reconnectAll: () => Promise<void>
-  testConnection: (connection: MongoConnection) => Promise<{ success: boolean; error?: string }>
+  testConnection: (connection: DatabaseConnection) => Promise<{ success: boolean; error?: string }>
 }
 
 export const useConnectionStore = create<ConnectionState>()((set, get) => ({
@@ -68,15 +69,19 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
       throw new Error('User not authenticated')
     }
 
-    const newConnection: MongoConnection = {
+    const newConnection: DatabaseConnection = {
       ...connection,
       id: crypto.randomUUID(),
       userId: session.user.id,
       createdAt: new Date(),
-    }
+    } as DatabaseConnection
 
-    // 调用新的 API 来添加连接（包含密码）
-    const response = await fetch('/api/connections/add', {
+    // 根据连接类型选择不同的 API
+    const apiPath = connection.type === 'postgresql'
+      ? '/api/connections/add-postgresql'
+      : '/api/connections/add'
+
+    const response = await fetch(apiPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newConnection),
@@ -96,7 +101,7 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   updateConnection: async (id, connection) => {
     set((state) => ({
       connections: state.connections.map((conn) =>
-        conn.id === id ? { ...conn, ...connection } : conn
+        conn.id === id ? { ...conn, ...connection } as DatabaseConnection : conn
       ),
     }))
     await get().saveConfig()
@@ -135,7 +140,12 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
     const results = await Promise.allSettled(
       connections.map(async (connection) => {
         try {
-          const response = await fetch('/api/connections/test', {
+          // 根据连接类型选择不同的 API
+          const apiPath = connection.type === 'postgresql'
+            ? '/api/postgresql/test'
+            : '/api/connections/test'
+
+          const response = await fetch(apiPath, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ connectionId: connection.id }),
@@ -163,7 +173,12 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
 
   testConnection: async (connection) => {
     try {
-      const response = await fetch('/api/connections/test', {
+      // 根据连接类型选择不同的 API
+      const apiPath = connection.type === 'postgresql'
+        ? '/api/postgresql/test'
+        : '/api/connections/test'
+
+      const response = await fetch(apiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId: connection.id }),
